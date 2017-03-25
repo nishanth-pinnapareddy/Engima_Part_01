@@ -146,10 +146,12 @@ void printResults(struct Results* results, int limit){
     int  i;
 
     for (i=0; i<limit; i++){
-        printf("\n %d. Score : %f, Key: %s", i+1, results[i].score, results[i].setting);
+	printf("\n ====================================");        
+	printf("\n %d. Score : %f, Key: %s", i+1, results[i].score, results[i].setting);
         printf("\n PlainText: %s", results[i].plainText);
-        printf("\n ====================================\n");
+        printf("\n ====================================");
     }
+    printf("\n");
 }
 
 
@@ -300,24 +302,18 @@ double computeDigraphScore(char* plainText, map_t digraphFreqMap){
 
     hashmap_free(plainTextmap);
 
-    double score = fabs(gsl_stats_correlation(digraph_freq, 1, plainText_freq, 1, i));
-
-    return score;
+    return fabs(gsl_stats_correlation(digraph_freq, 1, plainText_freq, 1, i));
 }
 
 void loadDiGraphFrequencies(map_t digraphFreqMap){
 
     FILE* in;
-    char fileName[100];
     char line[100];
     char key[3];
     char value[12];
     data_struct_q *valuept;
 
-
-    sprintf(fileName, "%s", "digraph.txt");
     in = fopen("digraph.txt", "r");
-
     while (fgets(line, sizeof(line), in)) {
         key[0] = line[0];
         key[1] = line[1];
@@ -336,12 +332,10 @@ void loadDiGraphFrequencies(map_t digraphFreqMap){
 
         float freq = atof(value);
 
-        //printf("\n Key : %s, Value : %.2f", key, freq);
         valuept = malloc(sizeof(data_struct_q));
         sprintf(valuept->key_string, "%s", key);
         valuept->number = freq;
         hashmap_put(digraphFreqMap, valuept->key_string, valuept);
     }
-    printf("\n Load Digraph Frequencies in to hash Map");
 }
 
