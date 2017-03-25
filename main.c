@@ -4,7 +4,7 @@
 #include "engima.h"
 #include "hashmap.h"
 
-
+// English alpabet frequencies
 static double english_frequencies[26] =
     {8.167, 1.492, 2.782, 4.253, 12.70, 2.228, 2.015, 6.094, 6.966, 0.153, 0.772, 4.025, 2.406,
      6.749, 7.507, 1.929, 0.095, 5.987, 6.327, 9.056, 2.758, 0.978, 2.360, 0.150, 1.974, 0.074};
@@ -29,13 +29,12 @@ typedef struct data_struct_s
 } data_struct_t;
 
 
-int compare(const void* s1, const void* s2);
-void addToResult(char* setting, char* plainText, struct Results* results, double score, int keyCount);
-double computeScore(char* plainText, char* word, map_t digraphFreqMap);
+void addToResult(char* setting, char* plainText, struct Results* results, double score, int keyCount, int limit);
+double computeScore(char* plainText, char* word, map_t digraphFreqMap, int isWordGiven);
 void setting(int numL, int numM, int numR, int reflect, int init_L, int init_M, int init_R, char* key);
 double computeDigraphScore(char* plainText, map_t digraphFreqMap);
 void loadDiGraphFrequencies(map_t digraphFreqMap);
-void printResults(struct Results* results);
+void printResults(struct Results* results, int limit);
 
 double digraph_freq[111] = {0.0};
 double plainText_freq[111] = {0.0};
@@ -45,7 +44,7 @@ int main(int argc, const char *argv[])
 
     if(argc < 2)
     {
-        oops:   fprintf(stderr, "\n\nUsage: %s infile word\n\n",
+        oops:   fprintf(stderr, "\n\nUsage: %s infile possibleWord\n\n",
                         argv[0]);
         exit(0);
     }
@@ -53,12 +52,17 @@ int main(int argc, const char *argv[])
 
     char *buffer = NULL;
     size_t size = 0;
-
-    /* Open your_file in read-only mode */
     char infname[100];
     char word[100];
+    int limit = 10;
+    int isWordGiven = 0;
     sprintf(infname, "%s", argv[1]);
-    sprintf(word, "%s", argv[2]);
+    if (argc == 3) {
+        sprintf(word, "%s", argv[2]);
+        isWordGiven = 1;
+    }
+
+    /* Open your_file in read-only mode */
     FILE* fp = fopen(infname, "r");
     if(fp == NULL)
     {
@@ -89,18 +93,16 @@ int main(int argc, const char *argv[])
     map_t digraphFreqMap;
     digraphFreqMap = hashmap_new();
     loadDiGraphFrequencies(digraphFreqMap);
-
     const int rotors[5] = {0, 1, 2, 3, 4};
     const int letters[26] = {65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90};
     const int reflectors[2] = {66, 67};
 
     int l_rot, m_rot, r_rot, reflector;
     int init_l, init_m, init_r;
-
     int i,j,k,l,m,n,o;
     int keyCount=1;
 
-    struct Results results[50];
+    struct Results results[limit];
     char *plainText = malloc(512 * sizeof(char));
     char key[16];
 
@@ -122,10 +124,9 @@ int main(int argc, const char *argv[])
                                         init_r = letters[o];
                                         keyCount++;
                                         getEngimaresult(buffer, plainText, l_rot, m_rot, r_rot, reflector, init_l, init_m, init_r);
-                                        double score = computeScore(plainText, word, digraphFreqMap);
-                                        printf("\n %d. Conputed Score(%f) for key (%s)", keyCount, score, key);
+                                        double score = computeScore(plainText, word, digraphFreqMap, isWordGiven);
                                         setting(l_rot, m_rot, r_rot, reflector, init_l, init_m, init_r, key);
-                                        addToResult(key, plainText, results, score, keyCount-1);
+                                        addToResult(key, plainText, results, score, keyCount-1, limit);
                                     }
                                 }
                             }
@@ -136,15 +137,15 @@ int main(int argc, const char *argv[])
         }
     }
 
-    printResults(results);
+    printResults(results, limit);
     free(buffer);
     return 0;
 }
 
-void printResults(struct Results* results){
+void printResults(struct Results* results, int limit){
     int  i;
 
-    for (i=0; i<50; i++){
+    for (i=0; i<limit; i++){
         printf("\n %d. Score : %f, Key: %s", i+1, results[i].score, results[i].setting);
         printf("\n PlainText: %s", results[i].plainText);
         printf("\n ====================================\n");
@@ -152,18 +153,18 @@ void printResults(struct Results* results){
 }
 
 
-void addToResult(char* setting, char* plainText, struct Results* results, double score, int keyCount){
+void addToResult(char* setting, char* plainText, struct Results* results, double score, int keyCount, int limit){
     int index,i,j;
 
-    if (keyCount > 50) {
+    if (keyCount > limit) {
         if (results[0].score < fabs(score)) {
             results[0].score = fabs(score);
             strcpy(results[0].setting, setting);
             strcpy(results[0].plainText, plainText);
 
             struct Results temp;
-            for (i = 1; i < 50; i++){
-                for (j = 0; j < 50 - i; j++) {
+            for (i = 1; i < limit; i++){
+                for (j = 0; j < limit - i; j++) {
                     if (results[j].score > results[j + 1].score) {
                         temp = results[j];
                         results[j] = results[j + 1];
@@ -177,10 +178,10 @@ void addToResult(char* setting, char* plainText, struct Results* results, double
         results[keyCount-1].score = fabs(score);
         strcpy(results[keyCount-1].setting, setting);
         strcpy(results[keyCount-1].plainText, plainText);
-        if (keyCount == 50) {
+        if (keyCount == limit) {
             struct Results temp;
-            for (i = 1; i < 50; i++){
-                for (j = 0; j < 50 - i; j++) {
+            for (i = 1; i < limit; i++){
+                for (j = 0; j < limit - i; j++) {
                     if (results[j].score > results[j + 1].score) {
                         temp = results[j];
                         results[j] = results[j + 1];
@@ -192,7 +193,7 @@ void addToResult(char* setting, char* plainText, struct Results* results, double
     }
 }
 
-double computeScore(char* plainText, char* word, map_t digraphFreqMap){
+double computeScore(char* plainText, char* word, map_t digraphFreqMap, int isWordGiven){
     double frequencies[26] = {0};
 
     int index = 0;
@@ -208,12 +209,13 @@ double computeScore(char* plainText, char* word, map_t digraphFreqMap){
     double score = fabs(gsl_stats_correlation(english_frequencies, 1, frequencies, 1, 26));
     score += computeDigraphScore(plainText,digraphFreqMap);
 
-    char *pch = strstr(plainText, word);
-    if (pch != NULL)
-        score += 1.0;
+    if (isWordGiven == 1) {
+        char *pch = strstr(plainText, word);
+        if (pch != NULL)
+            score += 1.0;
+    }
 
    return score;
-    //return 0.0;
 }
 
 void setting(int numL, int numM, int numR, int reflect, int init_L, int init_M, int init_R, char * key){
